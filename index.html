@@ -1193,6 +1193,10 @@
       }
 
       function renderFeed(filter) {
+        // Every live deal renders in the feed: the newest as the featured
+        // slot, plus one card for each remaining live deal. No cap, no
+        // pagination, no collapsed section — the only thing that removes a
+        // deal from the feed is the 5-day expiry in isExpired().
         var live = POSTS.filter(function (p) { return !isExpired(p); });
         var visible = live.filter(function (p) { return filter === "all" || p.cat === filter; });
         if (!visible.length) {
@@ -1202,8 +1206,12 @@
           return;
         }
         var html = featuredHtml(visible[0]);
-        if (visible.length > 1) {
-          html += '<div class="grid">' + visible.slice(1).map(cardHtml).join("") + "</div>";
+        var cards = "";
+        for (var i = 1; i < visible.length; i++) {
+          cards += cardHtml(visible[i]);
+        }
+        if (cards) {
+          html += '<div class="grid">' + cards + "</div>";
         }
         feed.innerHTML = html;
         bindReadButtons();
