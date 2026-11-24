@@ -156,6 +156,22 @@
         padding: 3px 9px;
         border-radius: 4px;
       }
+      .flag-ended {
+        background: var(--ink);
+        color: var(--bg);
+      }
+      .card.is-ended, .featured.is-ended, .article.is-ended { background: var(--surface-2); }
+      .is-ended .photo img { filter: grayscale(0.45) saturate(0.7); opacity: 0.78; }
+      .article.is-ended img.hero { filter: grayscale(0.45) saturate(0.7); opacity: 0.82; }
+      .is-ended h2, .is-ended h3, .is-ended .excerpt, .is-ended .price-note { opacity: 0.78; }
+      .is-ended .deal-btn { background: var(--ink-soft); }
+      .is-ended .deal-btn:hover { filter: brightness(1.1); }
+      .ended-note {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink-soft);
+        margin: 8px 0 0;
+      }
       .featured h2, .card h3 {
         font-family: "Libre Franklin", sans-serif;
         font-weight: 800;
@@ -1072,8 +1088,12 @@
         return (
           '<div class="kicker-row"><span class="cat">' + esc(p.catLabel) + "</span>" +
           (p.flag ? '<span class="flag">' + esc(p.flag) + "</span>" : "") +
+          (isExpired(p) ? '<span class="flag flag-ended">Deal ended</span>' : "") +
           '<span class="posted">Posted ' + fmtPosted(p.published) + "</span></div>"
         );
+      }
+      function endedNote(p) {
+        return isExpired(p) ? '<p class="ended-note">This deal has ended — the sale price may no longer apply.</p>' : "";
       }
       function priceBlock(p) {
         return (
@@ -1083,14 +1103,16 @@
         );
       }
       function ctaBlock(p) {
+        var label = isExpired(p) ? "Check current price" : p.dealLabel;
         return (
           '<div class="cta-row"><a class="deal-btn" href="' + esc(p.dealUrl) + '" target="_blank" rel="noopener sponsored">' +
-          esc(p.dealLabel) + '</a><button class="read-btn" data-read="' + p.id + '">Read the take</button></div>'
+          esc(label) + '</a><button class="read-btn" data-read="' + p.id + '">Read the take</button></div>' +
+          endedNote(p)
         );
       }
       function featuredHtml(p) {
         return (
-          '<article class="featured" data-published="' + p.published + '">' +
+          '<article class="featured' + (isExpired(p) ? " is-ended" : "") + '" data-published="' + p.published + '">' +
           '<div class="photo"><img src="' + esc(p.img) + '" alt="' + esc(p.imgAlt) + '" loading="lazy" decoding="async" /></div>' +
           '<div class="body">' + kicker(p) +
           "<h2>" + esc(p.title) + "</h2>" +
@@ -1101,7 +1123,7 @@
       }
       function cardHtml(p) {
         return (
-          '<article class="card" data-published="' + p.published + '">' +
+          '<article class="card' + (isExpired(p) ? " is-ended" : "") + '" data-published="' + p.published + '">' +
           '<div class="photo"><img src="' + esc(p.img) + '" alt="' + esc(p.imgAlt) + '" loading="lazy" decoding="async" /></div>' +
           '<div class="body">' + kicker(p) +
           "<h3>" + esc(p.title) + "</h3>" +
@@ -1112,16 +1134,14 @@
       }
 
       function renderFeed(filter) {
-        // Every live deal renders in the feed: the newest as the featured
-        // slot, plus one card for each remaining live deal. No cap, no
-        // pagination, no collapsed section — the only thing that removes a
-        // deal from the feed is the 5-day expiry in isExpired().
-        var live = POSTS.filter(function (p) { return !isExpired(p); });
-        var visible = live.filter(function (p) { return filter === "all" || p.cat === filter; });
+        // Every post renders in the feed and stays up: the newest as the
+        // featured slot, plus one card for each remaining post. No cap, no
+        // pagination, no collapsed section, and no expiry removal — posts
+        // more than 5 days old stay visible in the ended state (see
+        // isExpired(), kicker(), and ctaBlock()).
+        var visible = POSTS.filter(function (p) { return filter === "all" || p.cat === filter; });
         if (!visible.length) {
-          feed.innerHTML = '<p class="empty-note">' +
-            (live.length ? "No deals in this category yet — check back soon." : "No live deals right now — new deals drop daily, check back soon.") +
-            "</p>";
+          feed.innerHTML = '<p class="empty-note">No deals in this category yet — check back soon.</p>';
           return;
         }
         var html = featuredHtml(visible[0]);
@@ -1154,8 +1174,11 @@
         if (!p) return;
         lastFocus = document.activeElement;
         var bodyHtml = p.body.map(function (para) { return "<p>" + esc(para) + "</p>"; }).join("");
+        var ended = isExpired(p);
+        var articleLabel = ended ? "Check current price" : p.dealLabel;
         articleBox.innerHTML =
           '<div class="close-row"><span class="cat">' + esc(p.catLabel) + '</span>' +
+          (ended ? '<span class="flag flag-ended">Deal ended</span>' : "") +
           '<button class="close-btn" id="close-article">Close ✕</button></div>' +
           '<h2 id="article-title">' + esc(p.title) + "</h2>" +
           '<p class="byline">Posted ' + fmtPostedLong(p.published) + " · Price checked " + (p.checked || DEFAULT_CHECKED) + "</p>" +
@@ -1165,8 +1188,10 @@
           '<div class="price-row"><span class="price-now">' + esc(p.priceNow) + "</span>" + wasPrice(p) + saveBadge(p) + "</div>" +
           '<p class="price-note">' + esc(p.priceNote) + "</p>" +
           '<div class="cta-row"><a class="deal-btn" href="' + esc(p.dealUrl) + '" target="_blank" rel="noopener sponsored">' +
-          esc(p.dealLabel) + "</a></div>" +
+          esc(articleLabel) + "</a></div>" +
+          endedNote(p) +
           checkedLine(p);
+        articleBox.className = "article" + (ended ? " is-ended" : "");
         overlay.classList.add("open");
         overlay.scrollTop = 0;
         document.body.style.overflow = "hidden";
